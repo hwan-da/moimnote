@@ -1,0 +1,170 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// 사용자
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships ClubMember[]
+  posts       Post[]
+  votes       Vote[]
+  attendances Attendance[]
+  accounts    Account[]
+  sessions    Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 동아리/동호회
+model Club {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  inviteCode  String   @unique @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     ClubMember[]
+  schedules   Schedule[]
+  posts       Post[]
+  attendances Attendance[]
+}
+
+// 동아리 회원 (User와 Club의 중간 테이블)
+model ClubMember {
+  id       String     @id @default(cuid())
+  role     MemberRole @default(MEMBER)
+  joinedAt DateTime   @default(now())
+
+  userId String
+  clubId String
+  user   User   @relation(fields: [userId], references: [id])
+  club   Club   @relation(fields: [clubId], references: [id])
+
+  @@unique([userId, clubId])
+}
+
+// 회원 역할
+enum MemberRole {
+  OWNER // 대표
+  ADMIN // 운영진
+  MEMBER // 일반 회원
+}
+
+// 일정
+model Schedule {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  startAt     DateTime
+  endAt       DateTime?
+  createdAt   DateTime  @default(now())
+
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id])
+}
+
+// 출석
+model Attendance {
+  id        String           @id @default(cuid())
+  date      DateTime
+  status    AttendanceStatus @default(ABSENT)
+  createdAt DateTime         @default(now())
+
+  userId String
+  clubId String
+  user   User   @relation(fields: [userId], references: [id])
+  club   Club   @relation(fields: [clubId], references: [id])
+
+  @@unique([userId, clubId, date])
+}
+
+enum AttendanceStatus {
+  PRESENT // 출석
+  ABSENT // 결석
+  LATE // 지각
+}
+
+// 게시글 (공지 + 투표)
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  type      PostType @default(NOTICE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  authorId String
+  clubId   String
+  author   User   @relation(fields: [authorId], references: [id])
+  club     Club   @relation(fields: [clubId], references: [id])
+
+  pollOptions PollOption[]
+}
+
+enum PostType {
+  NOTICE // 공지
+  POLL // 투표
+}
+
+// 투표 항목
+model PollOption {
+  id    String @id @default(cuid())
+  label String
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id])
+  votes  Vote[]
+}
+
+// 투표 결과
+model Vote {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId       String
+  pollOptionId String
+  user         User       @relation(fields: [userId], references: [id])
+  pollOption   PollOption @relation(fields: [pollOptionId], references: [id])
+
+  @@unique([userId, pollOptionId])
+}
